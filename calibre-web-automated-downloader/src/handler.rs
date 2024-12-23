@@ -1,15 +1,25 @@
-use axum::extract::State;
-use axum::response::Html;
-use minijinja::context;
-use std::sync::Arc;
-use crate::app::{AppError, AppState};
+use axum::{Json};
+use crate::app::{AppError};
 
-pub async fn handler_home(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
-    let template = state.templating_env.get_template("index").unwrap();
+// How to take a query parameter for search term
+pub async fn handler_search() -> Result<Json<String>, AppError> {
+    Ok(Json("{}".to_string()))
+}
 
-    let rendered = template
-        .render(context! {})
-        .unwrap();
+// How to take a query parameter for MD5 id of the book
+pub async fn handler_info() -> Result<Json<String>, AppError> {
+    Ok(Json("{}".to_string()))
+}
 
-    Ok(Html(rendered))
+pub async fn handler_download() -> Result<Json<String>, AppError> {
+    Ok(Json("{}".to_string()))
+}
+
+pub async fn handler_status() -> Result<Json<String>, AppError> {
+    log::info!("Status request received");
+    Ok(Json("{}".to_string()))
+}
+
+pub async fn handler_localdownload() -> Result<Json<String>, AppError> {
+    Ok(Json("{}".to_string()))
 }

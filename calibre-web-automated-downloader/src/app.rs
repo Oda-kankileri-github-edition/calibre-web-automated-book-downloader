@@ -1,20 +1,4 @@
 use axum::{http::StatusCode, response::{IntoResponse, Response}};
-use minijinja::Environment;
-
-// Create a AppState
-pub struct AppState {
-    pub templating_env: Environment<'static>,
-}
-
-impl AppState {
-    pub fn new() -> Self {
-        // Create a new templating environment
-        let mut templating_env = Environment::new();
-        templating_env.add_template("index", include_str!("../../templates/index.html"))
-        .unwrap();
-        Self { templating_env }
-    }
-}
 
 // Make our own error that wraps `anyhow::Error`.
 pub struct AppError(anyhow::Error);
