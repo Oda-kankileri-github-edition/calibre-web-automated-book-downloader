@@ -6,9 +6,9 @@
     <meta name="description" content="Calibre Web Book Downloader Application">
     <meta name="theme-color" content="#333333">
     <title>Calibre Web Book Downloader</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="static/css/styles.css">
     <!-- Add favicon -->
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="icon" type="image/x-icon" href="static/media/favicon.ico">
 </head>
 <body>
     <header>
@@ -19,7 +19,7 @@
         <!-- Search Section -->
         <section class="search-section">
             <div class="search-container">
-                <input 
+                <input
                     type="text" 
                     id="search-input" 
                     placeholder="Search by ISBN, title, author..."
@@ -103,6 +103,6 @@
     </footer>
 
     <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+    <script src="static/js/main.js" defer></script>
 </body>
 </html>

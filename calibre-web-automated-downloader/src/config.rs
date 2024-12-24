@@ -17,6 +17,7 @@ static SUPPORTED_BOOK_LANGUAGE: Lazy<Vec<&'static str>> = Lazy::new(|| {
 
 /// Configuration settings for the book downloader application.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Config {
     // Directory settings
     pub base_dir: PathBuf,
@@ -56,7 +57,7 @@ impl Config {
         dotenv().ok();
 
         // Directory settings
-        let base_dir = PathBuf::from(env::current_dir().expect("Failed to get current directory"));
+        let base_dir = env::current_dir().expect("Failed to get current directory");
         let log_dir = PathBuf::from("/var/logs");
 
         let tmp_dir = PathBuf::from(env::var("TMP_DIR").unwrap_or_else(|_| "/tmp/cwa-book-downloader".to_string()));
@@ -158,4 +159,4 @@ impl Config {
 }
 
 /// A global, lazily-initialized configuration instance.
-pub static CONFIG: Lazy<Config> = Lazy::new(|| Config::new());
+pub static CONFIG: Lazy<Config> = Lazy::new(Config::new);
