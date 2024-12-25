@@ -2,7 +2,10 @@
 name = "calibre-web-automated-downloader"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mustafa Soylu <mohkargan@gmail.com", "Siddik Acil <sddk.acil@gmail.com>"]
+authors = [
+    "Mustafa Soylu <mohkargan@gmail.com",
+    "Siddik Acil <sddk.acil@gmail.com>",
+]
 description = "Rust implementation of calibre-automated-web-downloader."
 license = "MIT"
 keywords = ['calibre', 'automation', 'e-book']
@@ -20,3 +23,6 @@ tokio = { version = "1.42.0", features = ["full"] }
 tower = { version = "0.5.1", features = ["util"] }
 tower-http = { version = "0.6.1", features = ["fs", "trace"] }
 log = "0.4.22"
+reqwest = "0.12.9"
+wiremock = "0.6.2"
+url = "2.5.4"

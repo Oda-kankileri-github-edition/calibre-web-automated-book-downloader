@@ -1,17 +1,82 @@
 use dotenv::dotenv;
 use once_cell::sync::Lazy;
 use std::env;
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 /// List of supported book languages.
 static SUPPORTED_BOOK_LANGUAGE: Lazy<Vec<&'static str>> = Lazy::new(|| {
     vec![
-        "en","zh","ru","es","fr","de","it","pt","pl","bg","nl","ja","ar","he","hu",
-        "la","cs","ko","tr","uk","id","ro","el","lt","bn","zh‑Hant","af","ca","sv",
-        "th","hi","ga","lv","kn","sr","bo","da","fa","hr","sk","jv","vi","ur","fi",
-        "no","rw","ta","be","kk","mn","ka","sl","eo","gl","mr","fil","gu","ml","ky",
-        "qu","az","sw","ba","pa","ms","te","sq","ug","hy","shn"
+        "en",
+        "zh",
+        "ru",
+        "es",
+        "fr",
+        "de",
+        "it",
+        "pt",
+        "pl",
+        "bg",
+        "nl",
+        "ja",
+        "ar",
+        "he",
+        "hu",
+        "la",
+        "cs",
+        "ko",
+        "tr",
+        "uk",
+        "id",
+        "ro",
+        "el",
+        "lt",
+        "bn",
+        "zh‑Hant",
+        "af",
+        "ca",
+        "sv",
+        "th",
+        "hi",
+        "ga",
+        "lv",
+        "kn",
+        "sr",
+        "bo",
+        "da",
+        "fa",
+        "hr",
+        "sk",
+        "jv",
+        "vi",
+        "ur",
+        "fi",
+        "no",
+        "rw",
+        "ta",
+        "be",
+        "kk",
+        "mn",
+        "ka",
+        "sl",
+        "eo",
+        "gl",
+        "mr",
+        "fil",
+        "gu",
+        "ml",
+        "ky",
+        "qu",
+        "az",
+        "sw",
+        "ba",
+        "pa",
+        "ms",
+        "te",
+        "sq",
+        "ug",
+        "hy",
+        "shn",
     ]
 });
 
@@ -27,8 +92,8 @@ pub struct Config {
     pub status_timeout: u64,
 
     // Network settings
-    pub max_retry: u32,
-    pub default_sleep: u64,
+    pub max_retry: u64,
+    pub retry_wait_duration: u64,
     pub cloudflare_proxy: String,
     pub use_cf_bypass: bool,
 
@@ -60,8 +125,12 @@ impl Config {
         let base_dir = env::current_dir().expect("Failed to get current directory");
         let log_dir = PathBuf::from("/var/logs");
 
-        let tmp_dir = PathBuf::from(env::var("TMP_DIR").unwrap_or_else(|_| "/tmp/cwa-book-downloader".to_string()));
-        let ingest_dir = PathBuf::from(env::var("INGEST_DIR").unwrap_or_else(|_| "/tmp/cwa-book-ingest".to_string()));
+        let tmp_dir = PathBuf::from(
+            env::var("TMP_DIR").unwrap_or_else(|_| "/tmp/cwa-book-downloader".to_string()),
+        );
+        let ingest_dir = PathBuf::from(
+            env::var("INGEST_DIR").unwrap_or_else(|_| "/tmp/cwa-book-ingest".to_string()),
+        );
         let status_timeout = env::var("STATUS_TIMEOUT")
             .unwrap_or_else(|_| "3600".to_string())
             .parse::<u64>()
@@ -75,12 +144,12 @@ impl Config {
         // Network settings
         let max_retry = env::var("MAX_RETRY")
             .unwrap_or_else(|_| "3".to_string())
-            .parse::<u32>()
+            .parse::<u64>()
             .expect("MAX_RETRY must be a valid integer");
-        let default_sleep = env::var("DEFAULT_SLEEP")
+        let retry_wait_duration = env::var("RETRY_WAIT_DURATION")
             .unwrap_or_else(|_| "5".to_string())
             .parse::<u64>()
-            .expect("DEFAULT_SLEEP must be a valid integer");
+            .expect("RETRY_WAIT_DURATION must be a valid integer");
         let cloudflare_proxy = env::var("CLOUDFLARE_PROXY_URL")
             .unwrap_or_else(|_| "http://localhost:8000".to_string());
         let use_cf_bypass = env::var("USE_CF_BYPASS")
@@ -90,7 +159,10 @@ impl Config {
             .unwrap_or(true);
 
         // Anna's Archive settings
-        let aa_donator_key = env::var("AA_DONATOR_KEY").unwrap_or_else(|_| "".to_string()).trim().to_string();
+        let aa_donator_key = env::var("AA_DONATOR_KEY")
+            .unwrap_or_else(|_| "".to_string())
+            .trim()
+            .to_string();
         let aa_base_url = env::var("AA_BASE_URL")
             .unwrap_or_else(|_| "https://annas-archive.org".to_string())
             .trim_end_matches('/')
@@ -142,7 +214,7 @@ impl Config {
             ingest_dir,
             status_timeout,
             max_retry,
-            default_sleep,
+            retry_wait_duration,
             cloudflare_proxy,
             use_cf_bypass,
             aa_donator_key,

@@ -1,5 +1,5 @@
-use axum::{Json};
-use crate::app::{AppError};
+use crate::app::AppError;
+use axum::Json;
 
 // How to take a query parameter for search term
 pub async fn handler_search() -> Result<Json<String>, AppError> {

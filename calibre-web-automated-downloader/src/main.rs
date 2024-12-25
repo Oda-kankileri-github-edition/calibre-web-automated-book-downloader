@@ -1,9 +1,10 @@
-mod config;
 mod app;
+mod config;
 mod handler;
+mod network;
 
-use config::CONFIG;
 use axum::{routing::get, Router};
+use config::CONFIG;
 use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
@@ -32,5 +33,3 @@ async fn main() {
     println!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }
-
-
