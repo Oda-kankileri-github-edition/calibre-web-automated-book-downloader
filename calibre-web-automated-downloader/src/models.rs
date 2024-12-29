@@ -1,12 +1,17 @@
 use once_cell::sync::Lazy;
+use proptest_derive::Arbitrary;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+
+// Bring the macros and other important things into scope.
+use proptest::prelude::*;
+
 use crate::config::CONFIG;
 
 /// An enum for possible book queue statuses.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Arbitrary)]
 pub enum QueueStatus {
     Queued,
     Downloading,
@@ -71,6 +76,7 @@ impl BookInfo {
 /// should only interact with the public methods on `BookQueue`.
 #[derive(Debug)]
 struct BookQueueData {
+    // This implementation is horrible, using the same book_id as the key in multiple maps.
     queue: HashSet<String>,
     status: HashMap<String, QueueStatus>,
     book_data: HashMap<String, BookInfo>,
@@ -130,7 +136,9 @@ impl BookQueue {
     /// Update the status of an existing book.
     pub fn update_status(&self, book_id: &str, status: QueueStatus) {
         let mut data = self.data.lock().unwrap();
+        log::debug!("Checking status of {} to {:?}", book_id, status);
         if data.status.contains_key(book_id) {
+            log::debug!("Updating status of {} to {:?}", book_id, status);
             Self::update_status_internal(&mut data, book_id, status);
         }
     }
@@ -146,16 +154,13 @@ impl BookQueue {
         let mut result = HashMap::<QueueStatus, HashMap<String, BookInfo>>::new();
 
         // Pre-populate each status variant with an empty map
-        for status_variant in [
-            QueueStatus::Queued,
-            QueueStatus::Downloading,
-            QueueStatus::Available,
-            QueueStatus::Error,
-            QueueStatus::Done,
-        ] {
-            result.insert(status_variant.clone(), HashMap::new());
-        }
-
+        result = HashMap::from([
+            (QueueStatus::Queued, HashMap::new()),
+            (QueueStatus::Downloading, HashMap::new()),
+            (QueueStatus::Available, HashMap::new()),
+            (QueueStatus::Error, HashMap::new()),
+            (QueueStatus::Done, HashMap::new()),
+        ]);
         // Fill each map with cloned BookInfo
         for (book_id, status) in &data.status {
             if let Some(book_info) = data.book_data.get(book_id) {
@@ -177,8 +182,11 @@ impl BookQueue {
         let mut to_update = Vec::new();
         let mut to_remove = Vec::new();
 
+        log::debug!("Refreshing queue...");
+
         // First pass: record changes
         for (book_id, status) in &data.status {
+            log::debug!("Checking status of {}: {:?}", book_id, status);
             if *status == QueueStatus::Available {
                 let path = CONFIG.ingest_dir.join(format!("{}.epub", book_id));
                 if !path.exists() {
@@ -187,8 +195,11 @@ impl BookQueue {
             }
 
             if let Some(ts) = data.status_timestamps.get(book_id) {
+                log::debug!("Checking timestamp of {}: {:?}, {:?}", book_id, now.duration_since(*ts), data.status_timeout);
                 if now.duration_since(*ts) > data.status_timeout {
+                    log::debug!("Stale entry: {}", book_id);
                     if *status == QueueStatus::Done {
+                        log::debug!("Marking stale entry as DONE: {}", book_id);
                         to_remove.push(book_id.clone());
                     }
                 }
@@ -202,6 +213,7 @@ impl BookQueue {
 
         // Remove stale entries
         for book_id in to_remove {
+            log::debug!("Removing stale entry: {}", book_id);
             data.status.remove(&book_id);
             data.status_timestamps.remove(&book_id);
             data.book_data.remove(&book_id);
@@ -224,3 +236,127 @@ impl BookQueue {
 
 /// A global, lazily initialized instance of BookQueue (thread-safe by design).
 pub static BOOK_QUEUE: Lazy<BookQueue> = Lazy::new(|| BookQueue::new());
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[test]
+    fn test_book_queue_status_to_string() {
+        assert_eq!(QueueStatus::Queued.to_string(), "queued");
+        assert_eq!(QueueStatus::Downloading.to_string(), "downloading");
+        assert_eq!(QueueStatus::Available.to_string(), "available");
+        assert_eq!(QueueStatus::Error.to_string(), "error");
+        assert_eq!(QueueStatus::Done.to_string(), "done");
+    }
+
+    #[test]
+    fn test_book_queue() {
+        let queue = BookQueue::new();
+        let book_id = "ABCD";
+        let status = QueueStatus::Done;
+        // Test enqueue
+        queue.add(book_id, BookInfo::new(book_id, "Title"));
+        // Test update
+        queue.update_status(book_id, status);
+        // Change the clock to simulate a timeout
+        queue.set_status_timeout(0);
+        queue.refresh();
+        // Check if the queue is empty
+        assert_eq!(queue.get_next(), None);
+    }
+
+    #[test]
+    fn test_book_queue_status() {
+        let queue  = BookQueue::new();
+        let book_id = "ABCD";
+        // Test enqueue
+        queue.add(book_id, BookInfo::new(book_id, "Title"));
+        // Test status update
+        queue.update_status(book_id, QueueStatus::Downloading);
+        queue.refresh();
+        // Check if the status is updated
+        assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == 1));
+    }
+
+    #[test]
+    // Test updating a non-existent book status
+    fn test_book_queue_status_non_existent() {
+        let queue = BookQueue::new();
+        let book_id = "ABCD";
+        queue.update_status(book_id, QueueStatus::Downloading);
+        queue.refresh();
+        assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == 0));
+    }
+
+    // Test thread safety
+    #[test]
+    fn test_book_queue_threadsafe() {
+        let queue = Arc::new(BookQueue::new());
+        let book_id = "ABCD";
+        let handles = (0..100).map(|i| {
+            let queue_ref = Arc::clone(&queue);
+            std::thread::spawn(move || {
+                let b =  format!("{}-{}", book_id, i);
+                queue_ref.add(&b, BookInfo::new(book_id, "Title"));
+                queue_ref.update_status(&b, QueueStatus::Downloading);
+            })
+        }).collect::<Vec<_>>();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        queue.refresh();
+        println!("{:?}", queue.get_status().len());
+        assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == 100));
+    }
+
+    proptest! {
+        #[test]
+        fn test_book_queue_proptest(status in any::<QueueStatus>()) {
+            let queue = BookQueue::new();
+            let book_id = "ABCD";
+            queue.add(&book_id, BookInfo::new(&book_id, "Title"));
+            queue.update_status(&book_id, status.clone());
+            if status == QueueStatus::Available {
+                prop_assert!(queue.get_status().get(&QueueStatus::Done).is_some_and(|v| v.len() == 1));
+            } else {
+                prop_assert!(queue.get_status().get(&status).is_some_and(|v| v.len() == 1));
+            }
+        }
+
+        #[test]
+        fn test_book_queue_proptest_refresh(status in any::<QueueStatus>()) {
+            let queue = BookQueue::new();
+            let book_id = "ABCD";
+            queue.add(&book_id, BookInfo::new(&book_id, "Title"));
+            queue.update_status(&book_id, status.clone());
+            queue.refresh();
+            if status == QueueStatus::Available {
+                prop_assert!(queue.get_status().get(&QueueStatus::Done).is_some_and(|v| v.len() == 1));
+            } else {
+                prop_assert!(queue.get_status().get(&status).is_some_and(|v| v.len() == 1));
+            }
+        }
+
+        #[test]
+        fn test_book_queue_proptest_threadsafe(count in 0usize..100) {
+            let queue = Arc::new(BookQueue::new());
+            let book_id = "ABCD";
+            let handles = (0..count).map(|i| {
+                let queue_ref = Arc::clone(&queue);
+                std::thread::spawn(move || {
+                    let b =  format!("{}-{}", book_id, i);
+                    queue_ref.add(&b, BookInfo::new(book_id, "Title"));
+                    queue_ref.update_status(&b, QueueStatus::Downloading);
+                })
+            }).collect::<Vec<_>>();
+            for handle in handles {
+                handle.join().unwrap();
+            }
+            queue.refresh();
+            prop_assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == count));
+        }
+    }
+}
