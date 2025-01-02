@@ -414,6 +414,43 @@ mod tests {
         assert_eq!(book2.size.as_deref(), Some("2.3MB"));
     }
 
+    #[test]
+    async fn test_search_books_success_danmachi() {
+        // Start a mock server
+        let mock_server = MockServer::start().await;
+
+        // Load HTML content from file
+        let html_content = fs::read_to_string("./test_data/danmachi.html")
+            .await
+            .expect("Failed to read danmachi.html");
+
+        // Mock the response for the search endpoint
+        Mock::given(method("GET"))
+            .and(path("/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(html_content))
+            .mount(&mock_server)
+            .await;
+
+        // Call the search_books function with the mock server's URL
+        let query = "ダンジョンに出会いを求めるのは間違っているだろうか";
+        let books = search_books(query, Some(&mock_server.uri())).await.unwrap();
+
+        // Verify results
+        assert_eq!(books.len(), 100);
+
+        // Verify the first book
+        let book1 = &books[0];
+        assert_eq!(book1.id, "9320e010092ad5cde279f733bdda3a2f");
+        assert_eq!(book1.preview.as_deref(), Some("https://s3proxy.cdn-zlib.sk//covers299/collections/userbooks/96f72585a12a73923dbac5e0769e41c6a98314c6f893599cc6bb0314c0f3b48e.jpg"));
+        assert_eq!(book1.title, "Is It Wrong to Try to Pick Up Girls in a Dungeon?, Vol. 18");
+        assert_eq!(book1.author.as_deref(), Some("Fujino Omori and Suzuhito Yasuda"));
+        assert_eq!(book1.publisher.as_deref(), Some("Yen On, Is It Wrong to Try to Pick Up Girls in a Dungeon?, 18, 2023"));
+        assert_eq!(book1.year.as_deref(), Some("2023"));
+        assert_eq!(book1.language.as_deref(), Some("en"));
+        assert_eq!(book1.format.as_deref(), Some("epub"));
+        assert_eq!(book1.size.as_deref(), Some("10.2MB"));
+    }
+
     // tests for get_book_info and its helpers
     #[test]
     async fn test_get_book_info() {
