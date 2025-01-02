@@ -33,7 +33,7 @@ impl ToString for QueueStatus {
 }
 
 /// Data structure representing book information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BookInfo {
     pub id: String,
     pub title: String,

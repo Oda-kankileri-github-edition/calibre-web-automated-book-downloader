@@ -443,4 +443,88 @@ mod tests {
         assert_eq!(book_info.publisher, Some("cj5_7301".to_string()));
         assert!(book_info.download_urls.len() > 0);
     }
+
+    #[test]
+    async fn test_queue_book() {
+        let book_id = "test_book_id";
+        let book_info = BookInfo::new(book_id, "Test Book");
+
+        // Queue the book
+        queue_book(book_id, book_info.clone());
+
+        // Verify the book is queued
+        let status = get_queue_status();
+        assert!(status
+            .get(&QueueStatus::Queued)
+            .map_or(false, |books| books.contains_key(book_id)));
+    }
+
+    #[test]
+    async fn test_get_queue_status() {
+        let book_id_1 = "book_1";
+        let book_id_2 = "book_2";
+
+        let book_info_1 = BookInfo::new(book_id_1, "Book 1");
+        let book_info_2 = BookInfo::new(book_id_2, "Book 2");
+
+        // Queue two books
+        queue_book(book_id_1, book_info_1.clone());
+        queue_book(book_id_2, book_info_2.clone());
+
+        // Verify the status map
+        let status = get_queue_status();
+
+        assert!(status.get(&QueueStatus::Queued).is_some());
+        let queued_books = status.get(&QueueStatus::Queued).unwrap();
+
+        // Use `contains_key` instead of directly comparing `Option` values
+        assert!(queued_books.contains_key(book_id_1));
+        assert!(queued_books.contains_key(book_id_2));
+
+        // Verify specific book information
+        assert_eq!(
+            queued_books.get(book_id_1).unwrap().title,
+            book_info_1.title
+        );
+        assert_eq!(
+            queued_books.get(book_id_2).unwrap().title,
+            book_info_2.title
+        );
+    }
+
+    #[test]
+    async fn test_download_book_success() {
+        // Set up a mock server
+        let mock_server = MockServer::start().await;
+
+        // Create a successful response for the mock server
+        Mock::given(method("GET"))
+            .and(path("/valid_url"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes("book data"))
+            .mount(&mock_server)
+            .await;
+
+        // BookInfo with a valid download URL
+        let book_info = BookInfo {
+            id: "test_id".to_string(),
+            title: "Test Book".to_string(),
+            format: Some("epub".to_string()),
+            download_urls: vec![format!("{}/valid_url", mock_server.uri())],
+            ..Default::default()
+        };
+
+        // Call the function
+        let result = download_book(&book_info).await;
+
+        // Assert that the function completed successfully
+        assert!(result.is_ok());
+
+        // Assert the file was written to the expected path
+        let expected_path = CONFIG.tmp_dir.join("test_id.epub");
+        let content = tokio::fs::read_to_string(&expected_path).await.unwrap();
+        assert_eq!(content, "book data");
+
+        // Clean up
+        tokio::fs::remove_file(expected_path).await.unwrap();
+    }
 }
