@@ -1,4 +1,5 @@
 mod app;
+mod book_manager;
 mod config;
 mod handler;
 mod models;
