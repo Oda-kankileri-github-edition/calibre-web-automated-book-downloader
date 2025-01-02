@@ -1,13 +1,9 @@
 use crate::config::CONFIG;
 use anyhow::{anyhow, Result};
 use axum::body::Bytes;
-use reqwest;
 use reqwest::Client;
 use std::time::Duration;
-use tokio;
 use url::Url;
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
 
 static APP_USER_AGENT: &str = concat!(
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ",
@@ -111,10 +107,10 @@ pub async fn html_get_page(url: String) -> Result<String> {
 
 pub async fn html_get_page_cf(url: String) -> Result<String> {
     if CONFIG.use_cf_bypass {
-        return html_get_page(url).await;
+        html_get_page(url).await
     } else {
         let cf_url = format!("{}/html?url={}", CONFIG.cloudflare_proxy, url);
-        return html_get_page(cf_url).await;
+        html_get_page(cf_url).await
     }
 }
 

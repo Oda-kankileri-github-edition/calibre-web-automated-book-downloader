@@ -4,7 +4,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-
 // Bring the macros and other important things into scope.
 use proptest::prelude::*;
 
@@ -34,7 +33,7 @@ impl ToString for QueueStatus {
 }
 
 /// Data structure representing book information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BookInfo {
     pub id: String,
     pub title: String,
@@ -195,7 +194,12 @@ impl BookQueue {
             }
 
             if let Some(ts) = data.status_timestamps.get(book_id) {
-                log::debug!("Checking timestamp of {}: {:?}, {:?}", book_id, now.duration_since(*ts), data.status_timeout);
+                log::debug!(
+                    "Checking timestamp of {}: {:?}, {:?}",
+                    book_id,
+                    now.duration_since(*ts),
+                    data.status_timeout
+                );
                 if now.duration_since(*ts) > data.status_timeout {
                     log::debug!("Stale entry: {}", book_id);
                     if *status == QueueStatus::Done {
@@ -235,7 +239,7 @@ impl BookQueue {
 }
 
 /// A global, lazily initialized instance of BookQueue (thread-safe by design).
-pub static BOOK_QUEUE: Lazy<BookQueue> = Lazy::new(|| BookQueue::new());
+pub static BOOK_QUEUE: Lazy<BookQueue> = Lazy::new(BookQueue::new);
 
 #[cfg(test)]
 mod tests {
@@ -270,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_book_queue_status() {
-        let queue  = BookQueue::new();
+        let queue = BookQueue::new();
         let book_id = "ABCD";
         // Test enqueue
         queue.add(book_id, BookInfo::new(book_id, "Title"));
@@ -278,7 +282,10 @@ mod tests {
         queue.update_status(book_id, QueueStatus::Downloading);
         queue.refresh();
         // Check if the status is updated
-        assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == 1));
+        assert!(queue
+            .get_status()
+            .get(&QueueStatus::Downloading)
+            .is_some_and(|v| v.len() == 1));
     }
 
     #[test]
@@ -288,7 +295,10 @@ mod tests {
         let book_id = "ABCD";
         queue.update_status(book_id, QueueStatus::Downloading);
         queue.refresh();
-        assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == 0));
+        assert!(queue
+            .get_status()
+            .get(&QueueStatus::Downloading)
+            .is_some_and(|v| v.len() == 0));
     }
 
     // Test thread safety
@@ -296,20 +306,25 @@ mod tests {
     fn test_book_queue_threadsafe() {
         let queue = Arc::new(BookQueue::new());
         let book_id = "ABCD";
-        let handles = (0..100).map(|i| {
-            let queue_ref = Arc::clone(&queue);
-            std::thread::spawn(move || {
-                let b =  format!("{}-{}", book_id, i);
-                queue_ref.add(&b, BookInfo::new(book_id, "Title"));
-                queue_ref.update_status(&b, QueueStatus::Downloading);
+        let handles = (0..100)
+            .map(|i| {
+                let queue_ref = Arc::clone(&queue);
+                std::thread::spawn(move || {
+                    let b = format!("{}-{}", book_id, i);
+                    queue_ref.add(&b, BookInfo::new(book_id, "Title"));
+                    queue_ref.update_status(&b, QueueStatus::Downloading);
+                })
             })
-        }).collect::<Vec<_>>();
+            .collect::<Vec<_>>();
         for handle in handles {
             handle.join().unwrap();
         }
         queue.refresh();
         println!("{:?}", queue.get_status().len());
-        assert!(queue.get_status().get(&QueueStatus::Downloading).is_some_and(|v| v.len() == 100));
+        assert!(queue
+            .get_status()
+            .get(&QueueStatus::Downloading)
+            .is_some_and(|v| v.len() == 100));
     }
 
     proptest! {
