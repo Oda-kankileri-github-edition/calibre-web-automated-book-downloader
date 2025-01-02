@@ -1,6 +1,7 @@
 mod app;
 mod config;
 mod handler;
+mod models;
 mod network;
 
 use axum::{routing::get, Router};
