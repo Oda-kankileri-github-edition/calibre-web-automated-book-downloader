@@ -102,53 +102,121 @@ pub async fn get_book_info(book_id: &str, base_url: Option<&str>) -> Result<Book
 /// Parse detailed book information from an HTML page.
 fn parse_book_info_page(html: &str, book_id: &str) -> Result<BookInfo> {
     let document = Html::parse_document(html);
-    let data_selector = Selector::parse("body > main > div:nth-of-type(1)").unwrap();
+    let main_selector =
+        Selector::parse("body > main > div").map_err(|e| anyhow!("Invalid selector: {}", e))?;
 
     let data = document
-        .select(&data_selector)
+        .select(&main_selector)
         .next()
-        .ok_or_else(|| anyhow!("Failed to parse book info for ID: {}", book_id))?;
+        .ok_or_else(|| anyhow!("Failed to find main container for book ID: {}", book_id))?;
+
+    let preview = data
+        .select(&Selector::parse("div img").unwrap())
+        .next()
+        .and_then(|img| img.value().attr("src"))
+        .map(|s| s.to_string());
+
+    let divs: Vec<_> = data.select(&Selector::parse("div").unwrap()).collect();
+    let start_div_id = divs
+        .iter()
+        .position(|div| div.text().any(|text| text.contains("🔍")))
+        .unwrap_or(3);
+
+    let format_div = divs
+        .get(start_div_id - 1)
+        .map(|div| div.text().collect::<Vec<_>>().concat())
+        .unwrap_or_default();
+    let format = format_div
+        .split('.')
+        .nth(1)
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_lowercase());
+    let size = format_div
+        .split(',')
+        .find(|token| {
+            token
+                .trim()
+                .chars()
+                .next()
+                .map_or(false, |c| c.is_numeric())
+        })
+        .map(|s| s.trim().to_string());
+
+    let mut urls = vec![];
+    for anchor in document.select(&Selector::parse("a").unwrap()) {
+        if let Some(href) = anchor.value().attr("href") {
+            urls.push(href.to_string());
+        }
+    }
 
     let mut book_info = BookInfo {
         id: book_id.to_string(),
-        title: extract_text(&data, "div:nth-of-type(1) > span")?,
-        author: Some(extract_text(&data, "div:nth-of-type(2) > span")?),
-        publisher: Some(extract_text(&data, "div:nth-of-type(3) > span")?),
-        year: Some(extract_text(&data, "div:nth-of-type(4) > span")?),
-        language: Some(extract_text(&data, "div:nth-of-type(5) > span")?),
-        format: None,
-        size: None,
-        preview: None,
+        title: divs
+            .get(start_div_id)
+            .map(|div| div.text().collect::<Vec<_>>().concat())
+            .unwrap_or_default(),
+        publisher: divs
+            .get(start_div_id + 1)
+            .map(|div| div.text().collect::<Vec<_>>().concat()),
+        author: divs
+            .get(start_div_id + 2)
+            .map(|div| div.text().collect::<Vec<_>>().concat()),
+        format,
+        size,
+        language: None,
+        year: None,
+        preview: preview,
+        download_urls: urls,
         info: Some(HashMap::new()),
-        download_urls: vec![],
     };
 
-    // Populate additional metadata and download URLs
-    populate_metadata_and_urls(&data, &mut book_info)?;
+    book_info.info = Some(extract_book_metadata(&divs[start_div_id + 3..]));
+
+    if let Some(language) = book_info
+        .info
+        .as_ref()
+        .and_then(|info| info.get("Language").and_then(|v| v.get(0)))
+    {
+        book_info.language = Some(language.clone());
+    }
+    if let Some(year) = book_info
+        .info
+        .as_ref()
+        .and_then(|info| info.get("Year").and_then(|v| v.get(0)))
+    {
+        book_info.year = Some(year.clone());
+    }
 
     Ok(book_info)
 }
 
-/// Helper function to extract text content.
-fn extract_text(data: &scraper::ElementRef, selector: &str) -> Result<String> {
-    let element = data
-        .select(&Selector::parse(selector).unwrap())
-        .next()
-        .ok_or_else(|| anyhow!("Failed to find element for selector: {}", selector))?;
-    Ok(element.text().collect::<Vec<_>>().concat())
-}
+fn extract_book_metadata(metadata_divs: &[scraper::ElementRef]) -> HashMap<String, Vec<String>> {
+    let mut info = HashMap::new();
 
-/// Populate additional metadata and download URLs.
-fn populate_metadata_and_urls(data: &scraper::ElementRef, book_info: &mut BookInfo) -> Result<()> {
-    let url_selector = Selector::parse("a").unwrap();
+    for div in metadata_divs {
+        let sub_data: Vec<_> = div.select(&Selector::parse("div").unwrap()).collect();
+        for i in (0..sub_data.len()).step_by(2) {
+            if let (Some(key), Some(value)) = (
+                sub_data[i].text().next().map(|s| s.trim().to_string()),
+                sub_data
+                    .get(i + 1)
+                    .and_then(|v| v.text().next())
+                    .map(|s| s.trim().to_string()),
+            ) {
+                info.entry(key).or_insert_with(Vec::new).push(value);
+            }
+        }
 
-    for element in data.select(&url_selector) {
-        if let Some(href) = element.value().attr("href") {
-            book_info.download_urls.push(href.to_string());
+        if let Some(spans) = div.select(&Selector::parse("span").unwrap()).next() {
+            for span in spans.select(&Selector::parse("span").unwrap()).step_by(2) {
+                let key = span.text().next().unwrap_or_default().trim().to_string();
+                let value = span.text().nth(1).unwrap_or_default().trim().to_string();
+                info.entry(key).or_insert_with(Vec::new).push(value);
+            }
         }
     }
 
-    Ok(())
+    info
 }
 
 /// Download a book based on its `BookInfo`.
@@ -181,8 +249,7 @@ pub fn get_queue_status() -> HashMap<QueueStatus, HashMap<String, BookInfo>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    use tokio::test;
+    use tokio::{fs, test};
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -348,4 +415,32 @@ mod tests {
     }
 
     // tests for get_book_info and its helpers
+    #[test]
+    async fn test_get_book_info() {
+        let book_id = "10bc7868c3d8e6d9dd84b4c47869c37c";
+
+        // Load HTML content from file
+        let html_content = fs::read_to_string("./test_data/lotr.html")
+            .await
+            .expect("Failed to read lotr.html");
+
+        // Mock the server response
+        let mock_server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::path(format!("/md5/{}", book_id)))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(html_content))
+            .mount(&mock_server)
+            .await;
+
+        let mock_base_url = mock_server.uri();
+        let book_info = get_book_info(book_id, Some(mock_base_url.as_str()))
+            .await
+            .expect("Failed to fetch book info");
+
+        // Add assertions (update manually based on actual data from lotr.html)
+        assert_eq!(book_info.id, book_id);
+        assert!(book_info.title.contains("Lord of the Rings"));
+        assert_eq!(book_info.author, Some("J. R. R. Tolkien 🔍".to_string()));
+        assert_eq!(book_info.publisher, Some("cj5_7301".to_string()));
+        assert!(book_info.download_urls.len() > 0);
+    }
 }
