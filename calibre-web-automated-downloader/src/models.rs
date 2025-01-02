@@ -239,7 +239,7 @@ impl BookQueue {
 }
 
 /// A global, lazily initialized instance of BookQueue (thread-safe by design).
-pub static BOOK_QUEUE: Lazy<BookQueue> = Lazy::new(|| BookQueue::new());
+pub static BOOK_QUEUE: Lazy<BookQueue> = Lazy::new(BookQueue::new);
 
 #[cfg(test)]
 mod tests {

@@ -165,7 +165,7 @@ fn parse_book_info_page(html: &str, book_id: &str) -> Result<BookInfo> {
         size,
         language: None,
         year: None,
-        preview: preview,
+        preview,
         download_urls: urls,
         info: Some(HashMap::new()),
     };
@@ -175,14 +175,14 @@ fn parse_book_info_page(html: &str, book_id: &str) -> Result<BookInfo> {
     if let Some(language) = book_info
         .info
         .as_ref()
-        .and_then(|info| info.get("Language").and_then(|v| v.get(0)))
+        .and_then(|info| info.get("Language").and_then(|v| v.first()))
     {
         book_info.language = Some(language.clone());
     }
     if let Some(year) = book_info
         .info
         .as_ref()
-        .and_then(|info| info.get("Year").and_then(|v| v.get(0)))
+        .and_then(|info| info.get("Year").and_then(|v| v.first()))
     {
         book_info.year = Some(year.clone());
     }
