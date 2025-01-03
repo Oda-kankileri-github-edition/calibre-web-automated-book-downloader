@@ -154,6 +154,8 @@ fn get_absolute_url(base_url: &str, url: &str) -> Result<String> {
 mod tests {
     use super::*;
     use tokio::test;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn test_html_get_page_success() {

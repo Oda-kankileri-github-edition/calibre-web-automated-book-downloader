@@ -442,9 +442,18 @@ mod tests {
         let book1 = &books[0];
         assert_eq!(book1.id, "9320e010092ad5cde279f733bdda3a2f");
         assert_eq!(book1.preview.as_deref(), Some("https://s3proxy.cdn-zlib.sk//covers299/collections/userbooks/96f72585a12a73923dbac5e0769e41c6a98314c6f893599cc6bb0314c0f3b48e.jpg"));
-        assert_eq!(book1.title, "Is It Wrong to Try to Pick Up Girls in a Dungeon?, Vol. 18");
-        assert_eq!(book1.author.as_deref(), Some("Fujino Omori and Suzuhito Yasuda"));
-        assert_eq!(book1.publisher.as_deref(), Some("Yen On, Is It Wrong to Try to Pick Up Girls in a Dungeon?, 18, 2023"));
+        assert_eq!(
+            book1.title,
+            "Is It Wrong to Try to Pick Up Girls in a Dungeon?, Vol. 18"
+        );
+        assert_eq!(
+            book1.author.as_deref(),
+            Some("Fujino Omori and Suzuhito Yasuda")
+        );
+        assert_eq!(
+            book1.publisher.as_deref(),
+            Some("Yen On, Is It Wrong to Try to Pick Up Girls in a Dungeon?, 18, 2023")
+        );
         assert_eq!(book1.year.as_deref(), Some("2023"));
         assert_eq!(book1.language.as_deref(), Some("en"));
         assert_eq!(book1.format.as_deref(), Some("epub"));
