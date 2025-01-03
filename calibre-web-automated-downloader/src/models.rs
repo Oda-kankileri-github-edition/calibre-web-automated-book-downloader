@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use proptest_derive::Arbitrary;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -33,7 +34,7 @@ impl ToString for QueueStatus {
 }
 
 /// Data structure representing book information.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct BookInfo {
     pub id: String,
     pub title: String,
